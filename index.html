@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Building Locator Map</title>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDummyKeyForDemo&libraries=places"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 32px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: -1px;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 0;
+            height: 600px;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #f0f0f0;
+        }
+
+        .sidebar {
+            background: #f9f9f9;
+            border-left: 1px solid #e0e0e0;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .sidebar-section {
+            margin-bottom: 24px;
+        }
+
+        .sidebar-title {
+            font-size: 0.85em;
+            font-weight: 700;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+        }
+
+        .location-info {
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 12px;
+        }
+
+        .location-label {
+            font-size: 0.9em;
+            color: #666;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .location-value {
+            font-size: 0.95em;
+            color: #333;
+            font-family: 'Monaco', monospace;
+            word-break: break-all;
+        }
+
+        .building-list {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .building-item {
+            background: white;
+            padding: 12px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #e0e0e0;
+        }
+
+        .building-item:hover {
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+            transform: translateX(4px);
+        }
+
+        .building-item.house {
+            border-left-color: #4CAF50;
+        }
+
+        .building-item.store {
+            border-left-color: #FF9800;
+        }
+
+        .building-number {
+            font-weight: 700;
+            font-size: 1em;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .building-type {
+            font-size: 0.85em;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        button {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .status {
+            font-size: 0.85em;
+            color: #999;
+            margin-top: 12px;
+            text-align: center;
+        }
+
+        .status.loading {
+            color: #667eea;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .sidebar {
+                border-left: none;
+                border-top: 1px solid #e0e0e0;
+                max-height: 300px;
+            }
+
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            #map {
+                height: 400px;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #999;
+        }
+
+        input[type="text"],
+        select {
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea !important;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        input[type="text"]::placeholder {
+            color: #bbb;
+        }
+
+        .icon-legend {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            font-size: 0.9em;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+        }
+
+        .legend-icon.house {
+            background: #4CAF50;
+            color: white;
+            font-weight: bold;
+            font-size: 0.8em;
+        }
+
+        .legend-icon.store {
+            background: #FF9800;
+            color: white;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗺️ Building Locator</h1>
+            <p>Live location mapping with building numbers and categories</p>
+        </div>
+
+        <div class="content">
+            <div id="map"></div>
+            
+            <div class="sidebar">
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Your Location</div>
+                    <button class="btn-primary" onclick="getLocation()">📍 Get My Location</button>
+                    <div class="status" id="status">Click to locate</div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Legend</div>
+                    <div class="icon-legend">
+                        <div class="legend-item">
+                            <div class="legend-icon house">🏠</div>
+                            <span>House</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-icon store">🏪</div>
+                            <span>Store</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Add Building</div>
+                    <input type="text" id="buildingNumber" placeholder="Building #" maxlength="10" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
+                    <select id="buildingType" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
+                        <option value="house">🏠 House</option>
+                        <option value="store">🏪 Store</option>
+                    </select>
+                    <button class="btn-primary" onclick="addBuilding()" style="width: 100%; margin-bottom: 12px;">+ Add Building</button>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Buildings List</div>
+                    <div class="building-list" id="buildingList"></div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn-secondary" onclick="clearMarkers()">Clear All</button>
+                    <button class="btn-primary" onclick="resetView()">Reset View</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let userMarker;
+        let buildingMarkers = [];
+        let userLocation = null;
+        let buildings = [];
+        let buildingIdCounter = 1;
+
+        // Default center coordinates (New York City)
+        const DEFAULT_LAT = 40.7128;
+        const DEFAULT_LNG = -74.0060;
+
+        // Initialize map
+        function initMap() {
+            // Check if Google Maps API is loaded
+            if (typeof google === 'undefined' || !google.maps) {
+                console.warn('Google Maps API not loaded yet, retrying...');
+                setTimeout(initMap, 500);
+                return;
+            }
+
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 15,
+                center: { lat: DEFAULT_LAT, lng: DEFAULT_LNG },
+                styles: [
+                    {
+                        featureType: 'poi',
+                        elementType: 'labels',
+                        stylers: [{ visibility: 'off' }]
+                    }
+                ]
+            });
+
+            // Load sample buildings
+            const sampleBuildings = [
+                { id: 1, number: '101', type: 'house', lat: DEFAULT_LAT, lng: DEFAULT_LNG, name: 'Residential Building 101' },
+                { id: 2, number: '102', type: 'store', lat: DEFAULT_LAT + 0.001, lng: DEFAULT_LNG, name: 'Shop Center 102' },
+                { id: 3, number: '103', type: 'house', lat: DEFAULT_LAT + 0.002, lng: DEFAULT_LNG, name: 'Residential Building 103' }
+            ];
+
+            buildings = sampleBuildings;
+            buildingIdCounter = 4;
+
+            loadBuildings();
+        }
+
+        // Create custom marker with building number
+        function createMarker(building) {
+            if (!map || typeof google === 'undefined') return;
+
+            const isHouse = building.type === 'house';
+            const color = isHouse ? '#4CAF50' : '#FF9800';
+            const icon = isHouse ? '🏠' : '🏪';
+
+            const svgMarker = `
+                <svg width="48" height="60" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <filter id="shadow">
+                            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
+                        </filter>
+                    </defs>
+                    <path d="M 24 0 C 13.05 0 4 9.05 4 20 C 4 35 24 60 24 60 S 44 35 44 20 C 44 9.05 34.95 0 24 0" fill="${color}" filter="url(#shadow)"/>
+                    <circle cx="24" cy="20" r="16" fill="white"/>
+                    <rect x="14" y="10" width="20" height="20" rx="2" fill="${color}"/>
+                    <text x="24" y="28" font-size="14" font-weight="bold" text-anchor="middle" fill="${color}">${building.number}</text>
+                </svg>
+            `;
+
+            const marker = new google.maps.Marker({
+                position: { lat: building.lat, lng: building.lng },
+                map: map,
+                icon: {
+                    url: 'data:image/svg+xml;base64,' + btoa(svgMarker),
+                    scaledSize: new google.maps.Size(48, 60)
+                },
+                title: `Building ${building.number} - ${building.name}`,
+                building: building
+            });
+
+            marker.addListener('click', () => {
+                map.setZoom(17);
+                map.setCenter(marker.getPosition());
+                showBuildingInfo(building);
+            });
+
+            buildingMarkers.push(marker);
+            return marker;
+        }
+
+        // Load all buildings on map
+        function loadBuildings() {
+            buildings.forEach(building => {
+                createMarker(building);
+            });
+            displayBuildingList();
+        }
+
+        // Display building list in sidebar
+        function displayBuildingList() {
+            const listContainer = document.getElementById('buildingList');
+            listContainer.innerHTML = '';
+
+            buildings.forEach(building => {
+                const item = document.createElement('div');
+                item.className = `building-item ${building.type}`;
+                item.innerHTML = `
+                    <div class="building-number">Building #${building.number}</div>
+                    <div class="building-type">${building.type}</div>
+                `;
+                item.onclick = () => {
+                    const marker = buildingMarkers.find(m => m.building.id === building.id);
+                    marker.getPosition() && google.maps.event.trigger(marker, 'click');
+                };
+                listContainer.appendChild(item);
+            });
+        }
+
+        // Add new building from user input
+        function addBuilding() {
+            const buildingNumber = document.getElementById('buildingNumber').value.trim();
+            const buildingType = document.getElementById('buildingType').value;
+
+            if (!buildingNumber) {
+                alert('Please enter a building number');
+                return;
+            }
+
+            // Check if building number already exists
+            if (buildings.some(b => b.number === buildingNumber)) {
+                alert(`Building #${buildingNumber} already exists!`);
+                return;
+            }
+
+            // Generate slightly offset coordinates for new buildings
+            const latOffset = (buildings.length * 0.0005) - 0.002;
+            const lngOffset = (buildings.length * 0.0003) - 0.001;
+
+            const newBuilding = {
+                id: buildingIdCounter++,
+                number: buildingNumber,
+                type: buildingType,
+                lat: DEFAULT_LAT + latOffset,
+                lng: DEFAULT_LNG + lngOffset,
+                name: `${buildingType.charAt(0).toUpperCase() + buildingType.slice(1)} Building ${buildingNumber}`
+            };
+
+            buildings.push(newBuilding);
+            createMarker(newBuilding);
+            displayBuildingList();
+
+            // Clear input
+            document.getElementById('buildingNumber').value = '';
+            document.getElementById('buildingNumber').focus();
+
+            // Show success message
+            const status = document.getElementById('status');
+            status.textContent = `✓ Building #${buildingNumber} added!`;
+            status.classList.remove('loading');
+            setTimeout(() => {
+                status.textContent = 'Click to locate';
+            }, 2000);
+        }
+
+        // Allow Enter key to add building
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('buildingNumber').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addBuilding();
+                }
+            });
+        });
+
+        // Get user location
+        function getLocation() {
+            if (!map || typeof google === 'undefined') {
+                alert('Map is not loaded yet. Please wait and try again.');
+                return;
+            }
+
+            const status = document.getElementById('status');
+            status.textContent = 'Getting location...';
+            status.classList.add('loading');
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                            accuracy: position.coords.accuracy
+                        };
+
+                        // Place user marker
+                        if (userMarker) {
+                            userMarker.setMap(null);
+                        }
+
+                        userMarker = new google.maps.Marker({
+                            position: { lat: userLocation.lat, lng: userLocation.lng },
+                            map: map,
+                            title: 'Your Location',
+                            icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                        });
+
+                        // Center map on user
+                        map.setCenter(userMarker.getPosition());
+                        map.setZoom(16);
+
+                        // Update status
+                        status.innerHTML = `
+                            <strong>Located!</strong><br>
+                            Lat: ${userLocation.lat.toFixed(4)}<br>
+                            Lng: ${userLocation.lng.toFixed(4)}
+                        `;
+                        status.classList.remove('loading');
+                    },
+                    (error) => {
+                        status.textContent = '❌ ' + error.message;
+                        status.classList.remove('loading');
+                    }
+                );
+            } else {
+                status.textContent = '❌ Geolocation not supported';
+            }
+        }
+
+        // Show building info
+        function showBuildingInfo(building) {
+            alert(`
+Building #${building.number}
+Type: ${building.type.toUpperCase()}
+Name: ${building.name}
+Coordinates: ${building.lat.toFixed(4)}, ${building.lng.toFixed(4)}
+            `);
+        }
+
+        // Clear all markers
+        function clearMarkers() {
+            buildingMarkers.forEach(marker => marker.setMap(null));
+            if (userMarker) userMarker.setMap(null);
+            buildingMarkers = [];
+        }
+
+        // Reset view
+        function resetView() {
+            if (!map || typeof google === 'undefined') {
+                alert('Map is not loaded yet. Please wait and try again.');
+                return;
+            }
+            map.setZoom(15);
+            map.setCenter({ lat: DEFAULT_LAT, lng: DEFAULT_LNG });
+        }
+
+        // Initialize on load
+        window.addEventListener('load', initMap);
+
+        // Handle API loading errors
+        window.addEventListener('error', function(e) {
+            if (e.message.includes('google') || e.message.includes('Maps')) {
+                console.error('Google Maps API failed to load');
+                document.getElementById('map').innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f0f0f0; font-family: sans-serif;">
+                        <div style="text-align: center;">
+                            <h2>⚠️ Google Maps API Issue</h2>
+                            <p>To use this app with your own location:</p>
+                            <ol style="text-align: left; display: inline-block;">
+                                <li>Visit: <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+                                <li>Create a project</li>
+                                <li>Enable "Maps JavaScript API"</li>
+                                <li>Create an API key</li>
+                                <li>Replace 'AIzaSyDummyKeyForDemo' in the script with your key</li>
+                            </ol>
+                            <p style="margin-top: 20px; font-size: 0.9em; color: #666;">
+                                (The map will work with sample data without authentication)
+                            </p>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
