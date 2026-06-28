@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Building Locator Map</title>
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDummyKeyForDemo&libraries=places"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -297,7 +298,15 @@
             <div class="sidebar">
                 <div class="sidebar-section">
                     <div class="sidebar-title">Your Location</div>
-                    <button class="btn-primary" onclick="getLocation()">📍 Get My Location</button>
+                    <button class="btn-primary" onclick="getLocation()" style="width: 100%; margin-bottom: 8px;">📍 Get My Location</button>
+                    <details style="font-size: 0.85em; color: #666; cursor: pointer;">
+                        <summary style="margin-bottom: 8px; font-weight: 500;">📍 Enter Coordinates Manually</summary>
+                        <div style="margin-top: 8px; background: white; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                            <input type="number" id="manualLat" placeholder="Latitude" step="0.0001" style="width: 100%; padding: 6px; margin-bottom: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
+                            <input type="number" id="manualLng" placeholder="Longitude" step="0.0001" style="width: 100%; padding: 6px; margin-bottom: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
+                            <button onclick="setManualLocation()" style="width: 100%; padding: 6px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em;">Set Location</button>
+                        </div>
+                    </details>
                     <div class="status" id="status">Click to locate</div>
                 </div>
 
@@ -352,24 +361,14 @@
 
         // Initialize map
         function initMap() {
-            // Check if Google Maps API is loaded
-            if (typeof google === 'undefined' || !google.maps) {
-                console.warn('Google Maps API not loaded yet, retrying...');
-                setTimeout(initMap, 500);
-                return;
-            }
-
-            map = new google.maps.Map(document.getElementById('map'), {
-                zoom: 15,
-                center: { lat: DEFAULT_LAT, lng: DEFAULT_LNG },
-                styles: [
-                    {
-                        featureType: 'poi',
-                        elementType: 'labels',
-                        stylers: [{ visibility: 'off' }]
-                    }
-                ]
-            });
+            // Initialize Leaflet map
+            map = L.map('map').setView([DEFAULT_LAT, DEFAULT_LNG], 15);
+            
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(map);
 
             // Load sample buildings
             const sampleBuildings = [
@@ -386,43 +385,53 @@
 
         // Create custom marker with building number
         function createMarker(building) {
-            if (!map || typeof google === 'undefined') return;
+            if (!map) return;
 
             const isHouse = building.type === 'house';
             const color = isHouse ? '#4CAF50' : '#FF9800';
-            const icon = isHouse ? '🏠' : '🏪';
 
-            const svgMarker = `
-                <svg width="48" height="60" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <filter id="shadow">
-                            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.3"/>
-                        </filter>
-                    </defs>
-                    <path d="M 24 0 C 13.05 0 4 9.05 4 20 C 4 35 24 60 24 60 S 44 35 44 20 C 44 9.05 34.95 0 24 0" fill="${color}" filter="url(#shadow)"/>
-                    <circle cx="24" cy="20" r="16" fill="white"/>
-                    <rect x="14" y="10" width="20" height="20" rx="2" fill="${color}"/>
-                    <text x="24" y="28" font-size="14" font-weight="bold" text-anchor="middle" fill="${color}">${building.number}</text>
-                </svg>
-            `;
-
-            const marker = new google.maps.Marker({
-                position: { lat: building.lat, lng: building.lng },
-                map: map,
-                icon: {
-                    url: 'data:image/svg+xml;base64,' + btoa(svgMarker),
-                    scaledSize: new google.maps.Size(48, 60)
-                },
-                title: `Building ${building.number} - ${building.name}`,
-                building: building
+            // Create custom HTML icon
+            const htmlIcon = L.divIcon({
+                html: `
+                    <div style="
+                        position: relative;
+                        width: 48px;
+                        height: 60px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    ">
+                        <svg width="48" height="60" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));">
+                            <path d="M 24 0 C 13.05 0 4 9.05 4 20 C 4 35 24 60 24 60 S 44 35 44 20 C 44 9.05 34.95 0 24 0" fill="${color}"/>
+                            <circle cx="24" cy="20" r="16" fill="white"/>
+                            <rect x="14" y="10" width="20" height="20" rx="2" fill="${color}"/>
+                            <text x="24" y="28" font-size="14" font-weight="bold" text-anchor="middle" fill="${color}">${building.number}</text>
+                        </svg>
+                    </div>
+                `,
+                iconSize: [48, 60],
+                iconAnchor: [24, 60],
+                popupAnchor: [0, -60],
+                className: 'building-marker'
             });
 
-            marker.addListener('click', () => {
+            const marker = L.marker([building.lat, building.lng], { icon: htmlIcon })
+                .addTo(map)
+                .bindPopup(`
+                    <div style="text-align: center; padding: 8px;">
+                        <strong>Building #${building.number}</strong><br>
+                        <small>${building.type.toUpperCase()}</small><br>
+                        <small>${building.name}</small>
+                    </div>
+                `, { maxWidth: 200 });
+
+            marker.on('click', () => {
                 map.setZoom(17);
-                map.setCenter(marker.getPosition());
-                showBuildingInfo(building);
+                map.setView([building.lat, building.lng]);
+                marker.openPopup();
             });
 
+            marker.building = building;
             buildingMarkers.push(marker);
             return marker;
         }
@@ -510,9 +519,66 @@
             });
         });
 
+        // Set location manually from input
+        function setManualLocation() {
+            const lat = parseFloat(document.getElementById('manualLat').value);
+            const lng = parseFloat(document.getElementById('manualLng').value);
+
+            if (isNaN(lat) || isNaN(lng)) {
+                alert('Please enter valid latitude and longitude');
+                return;
+            }
+
+            if (lat < -90 || lat > 90) {
+                alert('Latitude must be between -90 and 90');
+                return;
+            }
+
+            if (lng < -180 || lng > 180) {
+                alert('Longitude must be between -180 and 180');
+                return;
+            }
+
+            userLocation = { lat: lat, lng: lng };
+
+            if (userMarker) {
+                map.removeLayer(userMarker);
+            }
+
+            const userIcon = L.divIcon({
+                html: `
+                    <div style="
+                        width: 20px;
+                        height: 20px;
+                        background: #2196F3;
+                        border: 3px solid white;
+                        border-radius: 50%;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    "></div>
+                `,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10],
+                className: 'user-marker'
+            });
+
+            userMarker = L.marker([userLocation.lat, userLocation.lng], { icon: userIcon })
+                .addTo(map)
+                .bindPopup('📍 Your Location');
+
+            map.setView([userLocation.lat, userLocation.lng], 16);
+
+            const status = document.getElementById('status');
+            status.innerHTML = `
+                <strong>✓ Set!</strong><br>
+                Lat: ${userLocation.lat.toFixed(4)}<br>
+                Lng: ${userLocation.lng.toFixed(4)}
+            `;
+            status.classList.remove('loading');
+        }
+
         // Get user location
         function getLocation() {
-            if (!map || typeof google === 'undefined') {
+            if (!map) {
                 alert('Map is not loaded yet. Please wait and try again.');
                 return;
             }
@@ -530,37 +596,69 @@
                             accuracy: position.coords.accuracy
                         };
 
-                        // Place user marker
+                        // Remove old marker if exists
                         if (userMarker) {
-                            userMarker.setMap(null);
+                            map.removeLayer(userMarker);
                         }
 
-                        userMarker = new google.maps.Marker({
-                            position: { lat: userLocation.lat, lng: userLocation.lng },
-                            map: map,
-                            title: 'Your Location',
-                            icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                        // Create blue marker for user location
+                        const userIcon = L.divIcon({
+                            html: `
+                                <div style="
+                                    width: 20px;
+                                    height: 20px;
+                                    background: #2196F3;
+                                    border: 3px solid white;
+                                    border-radius: 50%;
+                                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                                "></div>
+                            `,
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10],
+                            className: 'user-marker'
                         });
 
+                        userMarker = L.marker([userLocation.lat, userLocation.lng], { icon: userIcon })
+                            .addTo(map)
+                            .bindPopup('📍 Your Location');
+
                         // Center map on user
-                        map.setCenter(userMarker.getPosition());
-                        map.setZoom(16);
+                        map.setView([userLocation.lat, userLocation.lng], 16);
 
                         // Update status
                         status.innerHTML = `
-                            <strong>Located!</strong><br>
+                            <strong>✓ Located!</strong><br>
                             Lat: ${userLocation.lat.toFixed(4)}<br>
                             Lng: ${userLocation.lng.toFixed(4)}
                         `;
                         status.classList.remove('loading');
                     },
                     (error) => {
-                        status.textContent = '❌ ' + error.message;
+                        let errorMsg = '';
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMsg = '❌ Permission denied. Use manual entry below.';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMsg = '❌ Location unavailable. Try manual entry.';
+                                break;
+                            case error.TIMEOUT:
+                                errorMsg = '❌ Request timed out.';
+                                break;
+                            default:
+                                errorMsg = '❌ ' + error.message;
+                        }
+                        status.textContent = errorMsg;
                         status.classList.remove('loading');
+                    },
+                    {
+                        enableHighAccuracy: false,
+                        timeout: 5000,
+                        maximumAge: 0
                     }
                 );
             } else {
-                status.textContent = '❌ Geolocation not supported';
+                status.innerHTML = '❌ Geolocation not available.<br>Use manual entry below.';
             }
         }
 
@@ -576,48 +674,23 @@ Coordinates: ${building.lat.toFixed(4)}, ${building.lng.toFixed(4)}
 
         // Clear all markers
         function clearMarkers() {
-            buildingMarkers.forEach(marker => marker.setMap(null));
-            if (userMarker) userMarker.setMap(null);
+            buildingMarkers.forEach(marker => map.removeLayer(marker));
+            if (userMarker) map.removeLayer(userMarker);
             buildingMarkers = [];
+            userMarker = null;
         }
 
         // Reset view
         function resetView() {
-            if (!map || typeof google === 'undefined') {
+            if (!map) {
                 alert('Map is not loaded yet. Please wait and try again.');
                 return;
             }
-            map.setZoom(15);
-            map.setCenter({ lat: DEFAULT_LAT, lng: DEFAULT_LNG });
+            map.setView([DEFAULT_LAT, DEFAULT_LNG], 15);
         }
 
         // Initialize on load
         window.addEventListener('load', initMap);
-
-        // Handle API loading errors
-        window.addEventListener('error', function(e) {
-            if (e.message.includes('google') || e.message.includes('Maps')) {
-                console.error('Google Maps API failed to load');
-                document.getElementById('map').innerHTML = `
-                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f0f0f0; font-family: sans-serif;">
-                        <div style="text-align: center;">
-                            <h2>⚠️ Google Maps API Issue</h2>
-                            <p>To use this app with your own location:</p>
-                            <ol style="text-align: left; display: inline-block;">
-                                <li>Visit: <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
-                                <li>Create a project</li>
-                                <li>Enable "Maps JavaScript API"</li>
-                                <li>Create an API key</li>
-                                <li>Replace 'AIzaSyDummyKeyForDemo' in the script with your key</li>
-                            </ol>
-                            <p style="margin-top: 20px; font-size: 0.9em; color: #666;">
-                                (The map will work with sample data without authentication)
-                            </p>
-                        </div>
-                    </div>
-                `;
-            }
-        });
     </script>
 </body>
 </html>
