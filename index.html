@@ -297,10 +297,10 @@
             
             <div class="sidebar">
                 <div class="sidebar-section">
-                    <div class="sidebar-title">Your Location</div>
+                    <div class="sidebar-title">Step 1: Get Your Location</div>
                     <button class="btn-primary" onclick="getLocation()" style="width: 100%; margin-bottom: 8px;">📍 Get My Location</button>
                     <details style="font-size: 0.85em; color: #666; cursor: pointer;">
-                        <summary style="margin-bottom: 8px; font-weight: 500;">📍 Enter Coordinates Manually</summary>
+                        <summary style="margin-bottom: 8px; font-weight: 500;">📍 Or Enter Coordinates</summary>
                         <div style="margin-top: 8px; background: white; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
                             <input type="number" id="manualLat" placeholder="Latitude" step="0.0001" style="width: 100%; padding: 6px; margin-bottom: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
                             <input type="number" id="manualLng" placeholder="Longitude" step="0.0001" style="width: 100%; padding: 6px; margin-bottom: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
@@ -308,6 +308,22 @@
                         </div>
                     </details>
                     <div class="status" id="status">Click to locate</div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Step 2: Add Building</div>
+                    <div style="font-size: 0.85em; color: #666; margin-bottom: 8px; padding: 8px; background: #f0f0f0; border-radius: 4px;">
+                        💡 Click on map to select location
+                    </div>
+                    <input type="text" id="buildingNumber" placeholder="Building #" maxlength="10" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
+                    <select id="buildingType" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
+                        <option value="house">🏠 House</option>
+                        <option value="store">🏪 Store</option>
+                    </select>
+                    <button class="btn-primary" onclick="addBuildingAtClickedLocation()" style="width: 100%; margin-bottom: 8px;">+ Add Building</button>
+                    <div style="font-size: 0.85em; color: #999; text-align: center; padding: 8px; background: #f9f9f9; border-radius: 4px;">
+                        <span id="clickLocationInfo">No location selected</span>
+                    </div>
                 </div>
 
                 <div class="sidebar-section">
@@ -325,19 +341,6 @@
                 </div>
 
                 <div class="sidebar-section">
-                    <div class="sidebar-title">Add Building</div>
-                    <div style="font-size: 0.85em; color: #666; margin-bottom: 8px; padding: 8px; background: #f0f0f0; border-radius: 4px;">
-                        💡 Tip: Get your location first to add buildings at your current position!
-                    </div>
-                    <input type="text" id="buildingNumber" placeholder="Building #" maxlength="10" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
-                    <select id="buildingType" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
-                        <option value="house">🏠 House</option>
-                        <option value="store">🏪 Store</option>
-                    </select>
-                    <button class="btn-primary" onclick="addBuilding()" style="width: 100%; margin-bottom: 12px;">+ Add Building</button>
-                </div>
-
-                <div class="sidebar-section">
                     <div class="sidebar-title">Buildings List</div>
                     <div class="building-list" id="buildingList"></div>
                 </div>
@@ -348,8 +351,10 @@
     <script>
         let map;
         let userMarker;
+        let tempMarker = null;
         let buildingMarkers = [];
         let userLocation = null;
+        let clickedLocation = null;
         let buildings = [];
         let buildingIdCounter = 1;
 
@@ -367,6 +372,34 @@
                 attribution: '&copy; OpenStreetMap contributors',
                 maxZoom: 19
             }).addTo(map);
+
+            // Add map click listener for building placement
+            map.on('click', function(e) {
+                clickedLocation = {
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng
+                };
+                
+                // Update display
+                document.getElementById('clickLocationInfo').textContent = 
+                    `📍 Lat: ${clickedLocation.lat.toFixed(4)}, Lng: ${clickedLocation.lng.toFixed(4)}`;
+                
+                // Add temporary marker at clicked location
+                if (tempMarker) {
+                    map.removeLayer(tempMarker);
+                }
+                
+                tempMarker = L.circleMarker([clickedLocation.lat, clickedLocation.lng], {
+                    radius: 8,
+                    fillColor: "#667eea",
+                    color: "#fff",
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map).bindPopup('Click here to add building');
+                
+                tempMarker.openPopup();
+            });
 
             // Load sample buildings
             const sampleBuildings = [
@@ -780,6 +813,61 @@
                 emptyMsg.textContent = 'No buildings yet. Add one above!';
                 listContainer.appendChild(emptyMsg);
             }
+        }
+
+        // Add building at clicked location on map
+        function addBuildingAtClickedLocation() {
+            const buildingNumber = document.getElementById('buildingNumber').value.trim();
+            const buildingType = document.getElementById('buildingType').value;
+
+            if (!buildingNumber) {
+                alert('Please enter a building number');
+                return;
+            }
+
+            if (!clickedLocation) {
+                alert('Please click on the map to select a location first');
+                return;
+            }
+
+            // Check if building number already exists
+            if (buildings.some(b => b.number === buildingNumber)) {
+                alert(`Building #${buildingNumber} already exists!`);
+                return;
+            }
+
+            const newBuilding = {
+                id: buildingIdCounter++,
+                number: buildingNumber,
+                type: buildingType,
+                lat: clickedLocation.lat,
+                lng: clickedLocation.lng,
+                name: `${buildingType.charAt(0).toUpperCase() + buildingType.slice(1)} Building ${buildingNumber}`
+            };
+
+            buildings.push(newBuilding);
+            createMarker(newBuilding);
+            displayBuildingList();
+
+            // Remove temporary marker
+            if (tempMarker) {
+                map.removeLayer(tempMarker);
+                tempMarker = null;
+            }
+
+            // Clear input
+            document.getElementById('buildingNumber').value = '';
+            document.getElementById('clickLocationInfo').textContent = 'No location selected';
+            clickedLocation = null;
+            document.getElementById('buildingNumber').focus();
+
+            // Show success message
+            const status = document.getElementById('status');
+            status.innerHTML = `✓ Building #${buildingNumber} added at location!`;
+            status.classList.remove('loading');
+            setTimeout(() => {
+                status.textContent = 'Click to locate';
+            }, 3000);
         }
 
         // Add new building from user input
