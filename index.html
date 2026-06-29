@@ -338,11 +338,6 @@
                     <div class="sidebar-title">Buildings List</div>
                     <div class="building-list" id="buildingList"></div>
                 </div>
-
-                <div class="btn-group">
-                    <button class="btn-secondary" onclick="clearMarkers()">Clear All</button>
-                    <button class="btn-primary" onclick="resetView()">Reset View</button>
-                </div>
             </div>
         </div>
     </div>
@@ -444,6 +439,226 @@
             displayBuildingList();
         }
 
+        // Focus on a building (zoom and center)
+        function focusBuilding(id) {
+            const building = buildings.find(b => b.id === id);
+            if (building && map) {
+                map.setView([building.lat, building.lng], 17);
+            }
+        }
+
+        // Delete building
+        function deleteBuilding(id) {
+            // Find building
+            const building = buildings.find(b => b.id === id);
+            if (!building) {
+                alert('Building not found!');
+                return;
+            }
+            
+            if (!confirm(`Delete Building #${building.number}?`)) {
+                return;
+            }
+            
+            // Remove marker from map
+            let foundMarker = false;
+            for (let i = 0; i < buildingMarkers.length; i++) {
+                const m = buildingMarkers[i];
+                if (m.building?.id === id) {
+                    try {
+                        map.removeLayer(m);
+                        foundMarker = true;
+                        buildingMarkers.splice(i, 1);
+                        break;
+                    } catch (err) {
+                        console.error('Error removing marker:', err);
+                    }
+                }
+            }
+            
+            // Remove from buildings array
+            const newBuildings = [];
+            for (let i = 0; i < buildings.length; i++) {
+                if (buildings[i].id !== id) {
+                    newBuildings.push(buildings[i]);
+                }
+            }
+            buildings = newBuildings;
+            
+            // Update display
+            displayBuildingList();
+            
+            // Success message
+            const status = document.getElementById('status');
+            status.textContent = `✓ Building #${building.number} deleted!`;
+            setTimeout(() => {
+                status.textContent = 'Click to locate';
+            }, 2000);
+        }
+
+        // Edit building
+        function editBuilding(id) {
+            const building = buildings.find(b => b.id === id);
+            if (!building) return;
+
+            // Create edit modal
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+            `;
+
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `
+                background: white;
+                padding: 32px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+                max-width: 400px;
+                width: 90%;
+            `;
+
+            modalContent.innerHTML = `
+                <h2 style="margin-bottom: 20px; color: #333; font-size: 1.5em;">Edit Building</h2>
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">Building Number</label>
+                    <input type="text" id="editNumber" value="${building.number}" maxlength="10" style="
+                        width: 100%;
+                        padding: 10px;
+                        border: 1px solid #ddd;
+                        border-radius: 6px;
+                        font-size: 1em;
+                        box-sizing: border-box;
+                    ">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">Type</label>
+                    <select id="editType" style="
+                        width: 100%;
+                        padding: 10px;
+                        border: 1px solid #ddd;
+                        border-radius: 6px;
+                        font-size: 1em;
+                        box-sizing: border-box;
+                    ">
+                        <option value="house" ${building.type === 'house' ? 'selected' : ''}>🏠 House</option>
+                        <option value="store" ${building.type === 'store' ? 'selected' : ''}>🏪 Store</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <button onclick="saveEditBuilding(${id})" style="
+                        flex: 1;
+                        padding: 12px;
+                        background: #667eea;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        font-size: 1em;
+                    ">Save</button>
+                    <button onclick="closeEditModal()" style="
+                        flex: 1;
+                        padding: 12px;
+                        background: #e0e0e0;
+                        color: #333;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        font-size: 1em;
+                    ">Cancel</button>
+                </div>
+            `;
+
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+
+            // Close modal on background click
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                }
+            };
+
+            window.currentEditModal = modal;
+        }
+
+        // Close edit modal
+        function closeEditModal() {
+            if (window.currentEditModal) {
+                window.currentEditModal.remove();
+                window.currentEditModal = null;
+            }
+        }
+
+        // Save edited building
+        function saveEditBuilding(id) {
+            try {
+                const newNumber = document.getElementById('editNumber').value.trim();
+                const newType = document.getElementById('editType').value;
+
+                if (!newNumber) {
+                    alert('Building number cannot be empty');
+                    return;
+                }
+
+                // Check if number already exists (but allow same building)
+                if (buildings.some(b => b.number === newNumber && b.id !== id)) {
+                    alert(`Building #${newNumber} already exists!`);
+                    return;
+                }
+
+                const building = buildings.find(b => b.id === id);
+                if (!building) {
+                    alert('Building not found');
+                    return;
+                }
+
+                const oldNumber = building.number;
+                
+                // Update building
+                building.number = newNumber;
+                building.type = newType;
+                building.name = `${newType.charAt(0).toUpperCase() + newType.slice(1)} Building ${newNumber}`;
+
+                // Update marker on map
+                const markerIndex = buildingMarkers.findIndex(m => m.building.id === id);
+                if (markerIndex !== -1) {
+                    const oldMarker = buildingMarkers[markerIndex];
+                    if (oldMarker && oldMarker._leaflet_id !== undefined) {
+                        map.removeLayer(oldMarker);
+                    }
+                    buildingMarkers.splice(markerIndex, 1);
+                    createMarker(building);
+                }
+
+                // Refresh list
+                displayBuildingList();
+
+                // Close modal
+                closeEditModal();
+
+                // Show success message
+                const status = document.getElementById('status');
+                status.textContent = `✓ Building #${oldNumber} updated to #${newNumber}!`;
+                setTimeout(() => {
+                    status.textContent = 'Click to locate';
+                }, 2000);
+            } catch (e) {
+                console.error('Error saving edit:', e);
+                alert('Error saving changes. Check console.');
+            }
+        }
+
         // Display building list in sidebar
         function displayBuildingList() {
             const listContainer = document.getElementById('buildingList');
@@ -452,16 +667,70 @@
             buildings.forEach(building => {
                 const item = document.createElement('div');
                 item.className = `building-item ${building.type}`;
-                item.innerHTML = `
+                item.id = `building-item-${building.id}`;
+                
+                const nameDiv = document.createElement('div');
+                nameDiv.style.cssText = 'flex: 1; cursor: pointer;';
+                nameDiv.onclick = () => focusBuilding(building.id);
+                nameDiv.innerHTML = `
                     <div class="building-number">Building #${building.number}</div>
                     <div class="building-type">${building.type}</div>
                 `;
-                item.onclick = () => {
-                    const marker = buildingMarkers.find(m => m.building.id === building.id);
-                    marker.getPosition() && google.maps.event.trigger(marker, 'click');
+
+                const buttonsDiv = document.createElement('div');
+                buttonsDiv.style.cssText = 'display: flex; gap: 4px; margin-left: 8px;';
+
+                const editBtn = document.createElement('button');
+                editBtn.textContent = '✏️ Edit';
+                editBtn.style.cssText = `
+                    padding: 4px 8px;
+                    background: #667eea;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 0.75em;
+                    font-weight: 600;
+                `;
+                editBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    editBuilding(building.id);
                 };
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = '🗑️ Del';
+                deleteBtn.style.cssText = `
+                    padding: 4px 8px;
+                    background: #f44336;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 0.75em;
+                    font-weight: 600;
+                `;
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteBuilding(building.id);
+                };
+
+                const mainDiv = document.createElement('div');
+                mainDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: flex-start;';
+                mainDiv.appendChild(nameDiv);
+                mainDiv.appendChild(buttonsDiv);
+                buttonsDiv.appendChild(editBtn);
+                buttonsDiv.appendChild(deleteBtn);
+
+                item.appendChild(mainDiv);
                 listContainer.appendChild(item);
             });
+
+            if (buildings.length === 0) {
+                const emptyMsg = document.createElement('div');
+                emptyMsg.style.cssText = 'text-align: center; color: #999; padding: 20px 10px; font-size: 0.9em;';
+                emptyMsg.textContent = 'No buildings yet. Add one above!';
+                listContainer.appendChild(emptyMsg);
+            }
         }
 
         // Add new building from user input
@@ -672,12 +941,49 @@ Coordinates: ${building.lat.toFixed(4)}, ${building.lng.toFixed(4)}
             `);
         }
 
-        // Clear all markers
+        // Clear all markers and buildings
         function clearMarkers() {
-            buildingMarkers.forEach(marker => map.removeLayer(marker));
-            if (userMarker) map.removeLayer(userMarker);
-            buildingMarkers = [];
-            userMarker = null;
+            try {
+                // Remove all building markers from map
+                buildingMarkers.forEach(marker => {
+                    try {
+                        if (marker && marker._leaflet_id !== undefined) {
+                            map.removeLayer(marker);
+                        }
+                    } catch (e) {
+                        console.error('Error removing marker:', e);
+                    }
+                });
+                
+                // Remove user marker from map
+                if (userMarker && userMarker._leaflet_id !== undefined) {
+                    try {
+                        map.removeLayer(userMarker);
+                    } catch (e) {
+                        console.error('Error removing user marker:', e);
+                    }
+                }
+                
+                // Clear arrays
+                buildingMarkers = [];
+                buildings = [];
+                userMarker = null;
+                
+                // Update UI
+                displayBuildingList();
+                
+                // Show success message
+                const status = document.getElementById('status');
+                status.textContent = '✓ All markers cleared!';
+                status.classList.remove('loading');
+                setTimeout(() => {
+                    status.textContent = 'Click to locate';
+                }, 2000);
+                
+            } catch (e) {
+                console.error('Error in clearMarkers:', e);
+                alert('Error clearing markers. Check console.');
+            }
         }
 
         // Reset view
@@ -686,7 +992,18 @@ Coordinates: ${building.lat.toFixed(4)}, ${building.lng.toFixed(4)}
                 alert('Map is not loaded yet. Please wait and try again.');
                 return;
             }
-            map.setView([DEFAULT_LAT, DEFAULT_LNG], 15);
+            try {
+                map.setView([DEFAULT_LAT, DEFAULT_LNG], 15);
+                
+                const status = document.getElementById('status');
+                status.textContent = '✓ View reset!';
+                setTimeout(() => {
+                    status.textContent = 'Click to locate';
+                }, 1500);
+            } catch (e) {
+                console.error('Error in resetView:', e);
+                alert('Error resetting view. Check console.');
+            }
         }
 
         // Initialize on load
