@@ -326,6 +326,9 @@
 
                 <div class="sidebar-section">
                     <div class="sidebar-title">Add Building</div>
+                    <div style="font-size: 0.85em; color: #666; margin-bottom: 8px; padding: 8px; background: #f0f0f0; border-radius: 4px;">
+                        💡 Tip: Get your location first to add buildings at your current position!
+                    </div>
                     <input type="text" id="buildingNumber" placeholder="Building #" maxlength="10" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
                     <select id="buildingType" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
                         <option value="house">🏠 House</option>
@@ -749,16 +752,25 @@
                 return;
             }
 
-            // Generate slightly offset coordinates for new buildings
-            const latOffset = (buildings.length * 0.0005) - 0.002;
-            const lngOffset = (buildings.length * 0.0003) - 0.001;
+            // Use user location if available, otherwise use default with offset
+            let lat, lng;
+            if (userLocation) {
+                lat = userLocation.lat;
+                lng = userLocation.lng;
+            } else {
+                // Use offset from default location
+                const latOffset = (buildings.length * 0.0005) - 0.002;
+                const lngOffset = (buildings.length * 0.0003) - 0.001;
+                lat = DEFAULT_LAT + latOffset;
+                lng = DEFAULT_LNG + lngOffset;
+            }
 
             const newBuilding = {
                 id: buildingIdCounter++,
                 number: buildingNumber,
                 type: buildingType,
-                lat: DEFAULT_LAT + latOffset,
-                lng: DEFAULT_LNG + lngOffset,
+                lat: lat,
+                lng: lng,
                 name: `${buildingType.charAt(0).toUpperCase() + buildingType.slice(1)} Building ${buildingNumber}`
             };
 
@@ -770,13 +782,17 @@
             document.getElementById('buildingNumber').value = '';
             document.getElementById('buildingNumber').focus();
 
-            // Show success message
+            // Show success message with location info
             const status = document.getElementById('status');
-            status.textContent = `✓ Building #${buildingNumber} added!`;
+            if (userLocation) {
+                status.innerHTML = `✓ Building #${buildingNumber} added at your location!`;
+            } else {
+                status.innerHTML = `✓ Building #${buildingNumber} added!<br><small>Get your location to add at current position</small>`;
+            }
             status.classList.remove('loading');
             setTimeout(() => {
                 status.textContent = 'Click to locate';
-            }, 2000);
+            }, 3000);
         }
 
         // Allow Enter key to add building
