@@ -364,54 +364,69 @@
 
         // Initialize map
         function initMap() {
-            // Initialize Leaflet map
-            map = L.map('map').setView([DEFAULT_LAT, DEFAULT_LNG], 15);
-            
-            // Add OpenStreetMap tiles
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors',
-                maxZoom: 19
-            }).addTo(map);
-
-            // Add map click listener for building placement
-            map.on('click', function(e) {
-                clickedLocation = {
-                    lat: e.latlng.lat,
-                    lng: e.latlng.lng
-                };
+            try {
+                // Initialize Leaflet map
+                map = L.map('map').setView([DEFAULT_LAT, DEFAULT_LNG], 15);
                 
-                // Update display
-                document.getElementById('clickLocationInfo').textContent = 
-                    `📍 Lat: ${clickedLocation.lat.toFixed(4)}, Lng: ${clickedLocation.lng.toFixed(4)}`;
-                
-                // Add temporary marker at clicked location
-                if (tempMarker) {
-                    map.removeLayer(tempMarker);
-                }
-                
-                tempMarker = L.circleMarker([clickedLocation.lat, clickedLocation.lng], {
-                    radius: 8,
-                    fillColor: "#667eea",
-                    color: "#fff",
-                    weight: 2,
-                    opacity: 1,
-                    fillOpacity: 0.8
-                }).addTo(map).bindPopup('Click here to add building');
-                
-                tempMarker.openPopup();
-            });
+                // Add OpenStreetMap tiles
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors',
+                    maxZoom: 19
+                }).addTo(map);
 
-            // Load sample buildings
-            const sampleBuildings = [
-                { id: 1, number: '101', type: 'house', lat: DEFAULT_LAT, lng: DEFAULT_LNG, name: 'Residential Building 101' },
-                { id: 2, number: '102', type: 'store', lat: DEFAULT_LAT + 0.001, lng: DEFAULT_LNG, name: 'Shop Center 102' },
-                { id: 3, number: '103', type: 'house', lat: DEFAULT_LAT + 0.002, lng: DEFAULT_LNG, name: 'Residential Building 103' }
-            ];
+                // Add map click listener for building placement
+                map.on('click', function(e) {
+                    try {
+                        clickedLocation = {
+                            lat: e.latlng.lat,
+                            lng: e.latlng.lng
+                        };
+                        
+                        // Update display
+                        document.getElementById('clickLocationInfo').textContent = 
+                            `📍 Lat: ${clickedLocation.lat.toFixed(4)}, Lng: ${clickedLocation.lng.toFixed(4)}`;
+                        
+                        // Remove old temporary marker
+                        if (tempMarker) {
+                            try {
+                                map.removeLayer(tempMarker);
+                            } catch (e) {
+                                console.error('Error removing old temp marker:', e);
+                            }
+                        }
+                        
+                        // Add new temporary marker at clicked location
+                        tempMarker = L.circleMarker([clickedLocation.lat, clickedLocation.lng], {
+                            radius: 10,
+                            fillColor: "#667eea",
+                            color: "#fff",
+                            weight: 3,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        }).addTo(map);
+                        
+                        tempMarker.bindPopup('✓ Location selected<br>Enter building # and click Add');
+                        tempMarker.openPopup();
+                    } catch (err) {
+                        console.error('Error in map click handler:', err);
+                    }
+                });
 
-            buildings = sampleBuildings;
-            buildingIdCounter = 4;
+                // Load sample buildings
+                const sampleBuildings = [
+                    { id: 1, number: '101', type: 'house', lat: DEFAULT_LAT, lng: DEFAULT_LNG, name: 'Residential Building 101' },
+                    { id: 2, number: '102', type: 'store', lat: DEFAULT_LAT + 0.001, lng: DEFAULT_LNG, name: 'Shop Center 102' },
+                    { id: 3, number: '103', type: 'house', lat: DEFAULT_LAT + 0.002, lng: DEFAULT_LNG, name: 'Residential Building 103' }
+                ];
 
-            loadBuildings();
+                buildings = sampleBuildings;
+                buildingIdCounter = 4;
+
+                loadBuildings();
+            } catch (err) {
+                console.error('Error initializing map:', err);
+                alert('Error initializing map: ' + err.message);
+            }
         }
 
         // Create custom marker with building number
@@ -815,7 +830,7 @@
             }
         }
 
-        // Add building at clicked location on map
+        // Add building at clicked location or user location
         function addBuildingAtClickedLocation() {
             const buildingNumber = document.getElementById('buildingNumber').value.trim();
             const buildingType = document.getElementById('buildingType').value;
@@ -825,14 +840,22 @@
                 return;
             }
 
-            if (!clickedLocation) {
-                alert('Please click on the map to select a location first');
-                return;
-            }
-
             // Check if building number already exists
             if (buildings.some(b => b.number === buildingNumber)) {
                 alert(`Building #${buildingNumber} already exists!`);
+                return;
+            }
+
+            // Use clicked location if available, otherwise use user location, otherwise use default
+            let lat, lng;
+            if (clickedLocation) {
+                lat = clickedLocation.lat;
+                lng = clickedLocation.lng;
+            } else if (userLocation) {
+                lat = userLocation.lat;
+                lng = userLocation.lng;
+            } else {
+                alert('Please get your location or click on the map first');
                 return;
             }
 
@@ -840,8 +863,8 @@
                 id: buildingIdCounter++,
                 number: buildingNumber,
                 type: buildingType,
-                lat: clickedLocation.lat,
-                lng: clickedLocation.lng,
+                lat: lat,
+                lng: lng,
                 name: `${buildingType.charAt(0).toUpperCase() + buildingType.slice(1)} Building ${buildingNumber}`
             };
 
@@ -851,19 +874,29 @@
 
             // Remove temporary marker
             if (tempMarker) {
-                map.removeLayer(tempMarker);
+                try {
+                    map.removeLayer(tempMarker);
+                } catch (e) {
+                    console.error('Error removing temp marker:', e);
+                }
                 tempMarker = null;
             }
 
-            // Clear input
+            // Clear input and reset
             document.getElementById('buildingNumber').value = '';
             document.getElementById('clickLocationInfo').textContent = 'No location selected';
-            clickedLocation = null;
+            if (clickedLocation) {
+                clickedLocation = null;
+            }
             document.getElementById('buildingNumber').focus();
 
             // Show success message
             const status = document.getElementById('status');
-            status.innerHTML = `✓ Building #${buildingNumber} added at location!`;
+            if (clickedLocation) {
+                status.innerHTML = `✓ Building #${buildingNumber} added at clicked location!`;
+            } else {
+                status.innerHTML = `✓ Building #${buildingNumber} added at your location!`;
+            }
             status.classList.remove('loading');
             setTimeout(() => {
                 status.textContent = 'Click to locate';
