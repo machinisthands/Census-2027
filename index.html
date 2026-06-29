@@ -403,7 +403,7 @@
                             <path d="M 24 0 C 13.05 0 4 9.05 4 20 C 4 35 24 60 24 60 S 44 35 44 20 C 44 9.05 34.95 0 24 0" fill="${color}"/>
                             <circle cx="24" cy="20" r="16" fill="white"/>
                             <rect x="14" y="10" width="20" height="20" rx="2" fill="${color}"/>
-                            <text x="24" y="28" font-size="14" font-weight="bold" text-anchor="middle" fill="${color}">${building.number}</text>
+                            <text x="24" y="28" font-size="16" font-weight="bold" text-anchor="middle" fill="white" stroke="black" stroke-width="0.5">${building.number}</text>
                         </svg>
                     </div>
                 `,
@@ -542,7 +542,7 @@
                         box-sizing: border-box;
                     ">
                 </div>
-                <div style="margin-bottom: 20px;">
+                <div style="margin-bottom: 16px;">
                     <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">Type</label>
                     <select id="editType" style="
                         width: 100%;
@@ -555,6 +555,28 @@
                         <option value="house" ${building.type === 'house' ? 'selected' : ''}>🏠 House</option>
                         <option value="store" ${building.type === 'store' ? 'selected' : ''}>🏪 Store</option>
                     </select>
+                </div>
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">Latitude</label>
+                    <input type="number" id="editLat" value="${building.lat.toFixed(6)}" step="0.00001" style="
+                        width: 100%;
+                        padding: 10px;
+                        border: 1px solid #ddd;
+                        border-radius: 6px;
+                        font-size: 1em;
+                        box-sizing: border-box;
+                    ">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">Longitude</label>
+                    <input type="number" id="editLng" value="${building.lng.toFixed(6)}" step="0.00001" style="
+                        width: 100%;
+                        padding: 10px;
+                        border: 1px solid #ddd;
+                        border-radius: 6px;
+                        font-size: 1em;
+                        box-sizing: border-box;
+                    ">
                 </div>
                 <div style="display: flex; gap: 12px;">
                     <button onclick="saveEditBuilding(${id})" style="
@@ -608,9 +630,26 @@
             try {
                 const newNumber = document.getElementById('editNumber').value.trim();
                 const newType = document.getElementById('editType').value;
+                const newLat = parseFloat(document.getElementById('editLat').value);
+                const newLng = parseFloat(document.getElementById('editLng').value);
 
                 if (!newNumber) {
                     alert('Building number cannot be empty');
+                    return;
+                }
+
+                if (isNaN(newLat) || isNaN(newLng)) {
+                    alert('Please enter valid latitude and longitude');
+                    return;
+                }
+
+                if (newLat < -90 || newLat > 90) {
+                    alert('Latitude must be between -90 and 90');
+                    return;
+                }
+
+                if (newLng < -180 || newLng > 180) {
+                    alert('Longitude must be between -180 and 180');
                     return;
                 }
 
@@ -628,17 +667,23 @@
 
                 const oldNumber = building.number;
                 
-                // Update building
+                // Update building with new values
                 building.number = newNumber;
                 building.type = newType;
+                building.lat = newLat;
+                building.lng = newLng;
                 building.name = `${newType.charAt(0).toUpperCase() + newType.slice(1)} Building ${newNumber}`;
 
-                // Update marker on map
+                // Update marker on map - remove old and create new
                 const markerIndex = buildingMarkers.findIndex(m => m.building.id === id);
                 if (markerIndex !== -1) {
                     const oldMarker = buildingMarkers[markerIndex];
-                    if (oldMarker && oldMarker._leaflet_id !== undefined) {
-                        map.removeLayer(oldMarker);
+                    if (oldMarker) {
+                        try {
+                            map.removeLayer(oldMarker);
+                        } catch (err) {
+                            console.error('Error removing old marker:', err);
+                        }
                     }
                     buildingMarkers.splice(markerIndex, 1);
                     createMarker(building);
@@ -653,12 +698,13 @@
                 // Show success message
                 const status = document.getElementById('status');
                 status.textContent = `✓ Building #${oldNumber} updated to #${newNumber}!`;
+                status.classList.remove('loading');
                 setTimeout(() => {
                     status.textContent = 'Click to locate';
                 }, 2000);
             } catch (e) {
                 console.error('Error saving edit:', e);
-                alert('Error saving changes. Check console.');
+                alert('Error saving changes: ' + e.message);
             }
         }
 
