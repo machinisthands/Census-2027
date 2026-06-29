@@ -297,7 +297,7 @@
             
             <div class="sidebar">
                 <div class="sidebar-section">
-                    <div class="sidebar-title">Step 1: Get Your Location</div>
+                    <div class="sidebar-title">Your Location</div>
                     <button class="btn-primary" onclick="getLocation()" style="width: 100%; margin-bottom: 8px;">📍 Get My Location</button>
                     <details style="font-size: 0.85em; color: #666; cursor: pointer;">
                         <summary style="margin-bottom: 8px; font-weight: 500;">📍 Or Enter Coordinates</summary>
@@ -311,19 +311,13 @@
                 </div>
 
                 <div class="sidebar-section">
-                    <div class="sidebar-title">Step 2: Add Building</div>
-                    <div style="font-size: 0.85em; color: #666; margin-bottom: 8px; padding: 8px; background: #f0f0f0; border-radius: 4px;">
-                        💡 Click on map to select location
-                    </div>
+                    <div class="sidebar-title">Add Building</div>
                     <input type="text" id="buildingNumber" placeholder="Building #" maxlength="10" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
                     <select id="buildingType" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
                         <option value="house">🏠 House</option>
                         <option value="store">🏪 Store</option>
                     </select>
-                    <button class="btn-primary" onclick="addBuildingAtClickedLocation()" style="width: 100%; margin-bottom: 8px;">+ Add Building</button>
-                    <div style="font-size: 0.85em; color: #999; text-align: center; padding: 8px; background: #f9f9f9; border-radius: 4px;">
-                        <span id="clickLocationInfo">No location selected</span>
-                    </div>
+                    <button class="btn-primary" onclick="addBuildingAutoLocation()" style="width: 100%; margin-bottom: 12px;">+ Add Building</button>
                 </div>
 
                 <div class="sidebar-section">
@@ -362,7 +356,7 @@
         const DEFAULT_LAT = 40.7128;
         const DEFAULT_LNG = -74.0060;
 
-        // Initialize map
+        // Initialize map - simplified
         function initMap() {
             try {
                 // Initialize Leaflet map
@@ -373,44 +367,6 @@
                     attribution: '&copy; OpenStreetMap contributors',
                     maxZoom: 19
                 }).addTo(map);
-
-                // Add map click listener for building placement
-                map.on('click', function(e) {
-                    try {
-                        clickedLocation = {
-                            lat: e.latlng.lat,
-                            lng: e.latlng.lng
-                        };
-                        
-                        // Update display
-                        document.getElementById('clickLocationInfo').textContent = 
-                            `📍 Lat: ${clickedLocation.lat.toFixed(4)}, Lng: ${clickedLocation.lng.toFixed(4)}`;
-                        
-                        // Remove old temporary marker
-                        if (tempMarker) {
-                            try {
-                                map.removeLayer(tempMarker);
-                            } catch (e) {
-                                console.error('Error removing old temp marker:', e);
-                            }
-                        }
-                        
-                        // Add new temporary marker at clicked location
-                        tempMarker = L.circleMarker([clickedLocation.lat, clickedLocation.lng], {
-                            radius: 10,
-                            fillColor: "#667eea",
-                            color: "#fff",
-                            weight: 3,
-                            opacity: 1,
-                            fillOpacity: 0.8
-                        }).addTo(map);
-                        
-                        tempMarker.bindPopup('✓ Location selected<br>Enter building # and click Add');
-                        tempMarker.openPopup();
-                    } catch (err) {
-                        console.error('Error in map click handler:', err);
-                    }
-                });
 
                 // Load sample buildings
                 const sampleBuildings = [
@@ -425,7 +381,6 @@
                 loadBuildings();
             } catch (err) {
                 console.error('Error initializing map:', err);
-                alert('Error initializing map: ' + err.message);
             }
         }
 
@@ -830,8 +785,8 @@
             }
         }
 
-        // Add building at clicked location or user location
-        function addBuildingAtClickedLocation() {
+        // Add building with automatic location detection
+        function addBuildingAutoLocation() {
             const buildingNumber = document.getElementById('buildingNumber').value.trim();
             const buildingType = document.getElementById('buildingType').value;
 
@@ -846,17 +801,17 @@
                 return;
             }
 
-            // Use clicked location if available, otherwise use user location, otherwise use default
+            // Use user location if available, otherwise use default
             let lat, lng;
-            if (clickedLocation) {
-                lat = clickedLocation.lat;
-                lng = clickedLocation.lng;
-            } else if (userLocation) {
+            if (userLocation) {
                 lat = userLocation.lat;
                 lng = userLocation.lng;
             } else {
-                alert('Please get your location or click on the map first');
-                return;
+                // Use default location with offset
+                const latOffset = (buildings.length * 0.0005) - 0.002;
+                const lngOffset = (buildings.length * 0.0003) - 0.001;
+                lat = DEFAULT_LAT + latOffset;
+                lng = DEFAULT_LNG + lngOffset;
             }
 
             const newBuilding = {
@@ -872,35 +827,21 @@
             createMarker(newBuilding);
             displayBuildingList();
 
-            // Remove temporary marker
-            if (tempMarker) {
-                try {
-                    map.removeLayer(tempMarker);
-                } catch (e) {
-                    console.error('Error removing temp marker:', e);
-                }
-                tempMarker = null;
-            }
-
-            // Clear input and reset
+            // Clear input
             document.getElementById('buildingNumber').value = '';
-            document.getElementById('clickLocationInfo').textContent = 'No location selected';
-            if (clickedLocation) {
-                clickedLocation = null;
-            }
             document.getElementById('buildingNumber').focus();
 
             // Show success message
             const status = document.getElementById('status');
-            if (clickedLocation) {
-                status.innerHTML = `✓ Building #${buildingNumber} added at clicked location!`;
+            if (userLocation) {
+                status.textContent = `✓ Building #${buildingNumber} added at your location!`;
             } else {
-                status.innerHTML = `✓ Building #${buildingNumber} added at your location!`;
+                status.textContent = `✓ Building #${buildingNumber} added!`;
             }
             status.classList.remove('loading');
             setTimeout(() => {
                 status.textContent = 'Click to locate';
-            }, 3000);
+            }, 2000);
         }
 
         // Add new building from user input
