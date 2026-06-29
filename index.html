@@ -298,26 +298,17 @@
             <div class="sidebar">
                 <div class="sidebar-section">
                     <div class="sidebar-title">Your Location</div>
-                    <button class="btn-primary" onclick="getLocation()" style="width: 100%; margin-bottom: 8px;">📍 Get My Location</button>
-                    <details style="font-size: 0.85em; color: #666; cursor: pointer;">
-                        <summary style="margin-bottom: 8px; font-weight: 500;">📍 Or Enter Coordinates</summary>
-                        <div style="margin-top: 8px; background: white; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
-                            <input type="number" id="manualLat" placeholder="Latitude" step="0.0001" style="width: 100%; padding: 6px; margin-bottom: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
-                            <input type="number" id="manualLng" placeholder="Longitude" step="0.0001" style="width: 100%; padding: 6px; margin-bottom: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em;">
-                            <button onclick="setManualLocation()" style="width: 100%; padding: 6px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em;">Set Location</button>
-                        </div>
-                    </details>
-                    <div class="status" id="status">Click to locate</div>
+                    <div class="status" id="status">Click Add Building to get location</div>
                 </div>
 
                 <div class="sidebar-section">
                     <div class="sidebar-title">Add Building</div>
-                    <input type="text" id="buildingNumber" placeholder="Building #" maxlength="10" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
-                    <select id="buildingType" style="width: 100%; padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9em;">
-                        <option value="house">🏠 House</option>
-                        <option value="store">🏪 Store</option>
-                    </select>
-                    <button class="btn-primary" onclick="addBuildingAutoLocation()" style="width: 100%; margin-bottom: 12px;">+ Add Building</button>
+                    <button class="btn-primary" onclick="openAddBuildingForm()" style="width: 100%; margin-bottom: 8px; padding: 12px; font-size: 1em;">
+                        ➕ Add Building
+                    </button>
+                    <div style="font-size: 0.85em; color: #666; text-align: center;">
+                        Automatically detects your location
+                    </div>
                 </div>
 
                 <div class="sidebar-section">
@@ -338,6 +329,7 @@
                     <div class="sidebar-title">Buildings List</div>
                     <div class="building-list" id="buildingList"></div>
                 </div>
+            </div>
             </div>
         </div>
     </div>
@@ -785,13 +777,201 @@
             }
         }
 
-        // Add building with automatic location detection
-        function addBuildingAutoLocation() {
-            const buildingNumber = document.getElementById('buildingNumber').value.trim();
-            const buildingType = document.getElementById('buildingType').value;
+        // Open add building form with auto location detection
+        function openAddBuildingForm() {
+            const status = document.getElementById('status');
+            status.textContent = 'Getting your location...';
+            status.classList.add('loading');
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                            accuracy: position.coords.accuracy
+                        };
+
+                        // Remove old user marker if exists
+                        if (userMarker) {
+                            try {
+                                map.removeLayer(userMarker);
+                            } catch (e) {}
+                        }
+
+                        // Create user location marker
+                        const userIcon = L.divIcon({
+                            html: `
+                                <div style="
+                                    width: 20px;
+                                    height: 20px;
+                                    background: #2196F3;
+                                    border: 3px solid white;
+                                    border-radius: 50%;
+                                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                                "></div>
+                            `,
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                        });
+
+                        userMarker = L.marker([userLocation.lat, userLocation.lng], { icon: userIcon })
+                            .addTo(map)
+                            .bindPopup('📍 Your Location');
+
+                        // Center map on user
+                        map.setView([userLocation.lat, userLocation.lng], 16);
+
+                        // Update status
+                        status.innerHTML = `✓ Located!<br>Lat: ${userLocation.lat.toFixed(4)}<br>Lng: ${userLocation.lng.toFixed(4)}`;
+                        status.classList.remove('loading');
+
+                        // Show form modal
+                        showAddBuildingModal();
+                    },
+                    (error) => {
+                        status.textContent = '❌ ' + error.message;
+                        status.classList.remove('loading');
+                        // Show form anyway without location
+                        showAddBuildingModal();
+                    }
+                );
+            } else {
+                status.textContent = '❌ Geolocation not supported';
+                status.classList.remove('loading');
+                showAddBuildingModal();
+            }
+        }
+
+        // Show add building modal form
+        function showAddBuildingModal() {
+            const modal = document.createElement('div');
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+            `;
+
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `
+                background: white;
+                padding: 32px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+                max-width: 450px;
+                width: 90%;
+                max-height: 90vh;
+                overflow-y: auto;
+            `;
+
+            const lat = userLocation ? userLocation.lat.toFixed(6) : 'Not detected';
+            const lng = userLocation ? userLocation.lng.toFixed(6) : 'Not detected';
+
+            modalContent.innerHTML = `
+                <h2 style="margin-bottom: 24px; color: #333; font-size: 1.8em;">➕ Add Building</h2>
+                
+                <div style="background: #f0f0f0; padding: 12px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-size: 0.9em; color: #666; font-weight: 600; margin-bottom: 6px;">📍 Current Location:</div>
+                    <div style="font-size: 0.9em; color: #333; font-family: monospace;">
+                        Lat: ${lat}<br>
+                        Lng: ${lng}
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">Building Number</label>
+                    <input type="text" id="modalBuildingNumber" placeholder="e.g., 501" maxlength="10" style="
+                        width: 100%;
+                        padding: 12px;
+                        border: 1px solid #ddd;
+                        border-radius: 6px;
+                        font-size: 1em;
+                        box-sizing: border-box;
+                    ">
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">Building Type</label>
+                    <select id="modalBuildingType" style="
+                        width: 100%;
+                        padding: 12px;
+                        border: 1px solid #ddd;
+                        border-radius: 6px;
+                        font-size: 1em;
+                        box-sizing: border-box;
+                    ">
+                        <option value="house">🏠 House</option>
+                        <option value="store">🏪 Store</option>
+                    </select>
+                </div>
+
+                <div style="display: flex; gap: 12px;">
+                    <button onclick="submitAddBuilding()" style="
+                        flex: 1;
+                        padding: 14px;
+                        background: #667eea;
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        font-size: 1em;
+                    ">✓ Add Building</button>
+                    <button onclick="closeAddBuildingModal()" style="
+                        flex: 1;
+                        padding: 14px;
+                        background: #e0e0e0;
+                        color: #333;
+                        border: none;
+                        border-radius: 6px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        font-size: 1em;
+                    ">Cancel</button>
+                </div>
+            `;
+
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+
+            // Close on background click
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    closeAddBuildingModal();
+                }
+            };
+
+            window.currentAddBuildingModal = modal;
+            document.getElementById('modalBuildingNumber').focus();
+        }
+
+        // Close add building modal
+        function closeAddBuildingModal() {
+            if (window.currentAddBuildingModal) {
+                window.currentAddBuildingModal.remove();
+                window.currentAddBuildingModal = null;
+            }
+        }
+
+        // Submit add building form
+        function submitAddBuilding() {
+            const buildingNumber = document.getElementById('modalBuildingNumber').value.trim();
+            const buildingType = document.getElementById('modalBuildingType').value;
 
             if (!buildingNumber) {
                 alert('Please enter a building number');
+                return;
+            }
+
+            if (!userLocation) {
+                alert('No location available. Please enable geolocation.');
                 return;
             }
 
@@ -801,25 +981,12 @@
                 return;
             }
 
-            // Use user location if available, otherwise use default
-            let lat, lng;
-            if (userLocation) {
-                lat = userLocation.lat;
-                lng = userLocation.lng;
-            } else {
-                // Use default location with offset
-                const latOffset = (buildings.length * 0.0005) - 0.002;
-                const lngOffset = (buildings.length * 0.0003) - 0.001;
-                lat = DEFAULT_LAT + latOffset;
-                lng = DEFAULT_LNG + lngOffset;
-            }
-
             const newBuilding = {
                 id: buildingIdCounter++,
                 number: buildingNumber,
                 type: buildingType,
-                lat: lat,
-                lng: lng,
+                lat: userLocation.lat,
+                lng: userLocation.lng,
                 name: `${buildingType.charAt(0).toUpperCase() + buildingType.slice(1)} Building ${buildingNumber}`
             };
 
@@ -827,21 +994,16 @@
             createMarker(newBuilding);
             displayBuildingList();
 
-            // Clear input
-            document.getElementById('buildingNumber').value = '';
-            document.getElementById('buildingNumber').focus();
+            // Close modal
+            closeAddBuildingModal();
 
-            // Show success message
+            // Show success
             const status = document.getElementById('status');
-            if (userLocation) {
-                status.textContent = `✓ Building #${buildingNumber} added at your location!`;
-            } else {
-                status.textContent = `✓ Building #${buildingNumber} added!`;
-            }
+            status.innerHTML = `✓ Building #${buildingNumber} added!<br><small>${buildingType} at your location</small>`;
             status.classList.remove('loading');
             setTimeout(() => {
-                status.textContent = 'Click to locate';
-            }, 2000);
+                status.innerHTML = 'Click Add Building to get location';
+            }, 3000);
         }
 
         // Add new building from user input
