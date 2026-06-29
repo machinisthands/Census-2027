@@ -348,7 +348,35 @@
         const DEFAULT_LAT = 40.7128;
         const DEFAULT_LNG = -74.0060;
 
-        // Initialize map - simplified
+        // Load buildings from localStorage
+        function loadBuildingsFromStorage() {
+            try {
+                const savedData = localStorage.getItem('buildingMapData');
+                if (savedData) {
+                    const data = JSON.parse(savedData);
+                    buildings = data.buildings || [];
+                    buildingIdCounter = data.buildingIdCounter || 1;
+                    console.log('Loaded', buildings.length, 'buildings from storage');
+                }
+            } catch (err) {
+                console.error('Error loading from storage:', err);
+            }
+        }
+
+        // Save buildings to localStorage
+        function saveBuildingsToStorage() {
+            try {
+                const data = {
+                    buildings: buildings,
+                    buildingIdCounter: buildingIdCounter
+                };
+                localStorage.setItem('buildingMapData', JSON.stringify(data));
+            } catch (err) {
+                console.error('Error saving to storage:', err);
+            }
+        }
+
+        // Initialize map
         function initMap() {
             try {
                 // Initialize Leaflet map
@@ -360,15 +388,20 @@
                     maxZoom: 19
                 }).addTo(map);
 
-                // Load sample buildings
-                const sampleBuildings = [
-                    { id: 1, number: '101', type: 'house', lat: DEFAULT_LAT, lng: DEFAULT_LNG, name: 'Residential Building 101' },
-                    { id: 2, number: '102', type: 'store', lat: DEFAULT_LAT + 0.001, lng: DEFAULT_LNG, name: 'Shop Center 102' },
-                    { id: 3, number: '103', type: 'house', lat: DEFAULT_LAT + 0.002, lng: DEFAULT_LNG, name: 'Residential Building 103' }
-                ];
+                // Load buildings from storage or use defaults
+                loadBuildingsFromStorage();
 
-                buildings = sampleBuildings;
-                buildingIdCounter = 4;
+                if (buildings.length === 0) {
+                    // Load default sample buildings only if no saved data
+                    const sampleBuildings = [
+                        { id: 1, number: '101', type: 'house', lat: DEFAULT_LAT, lng: DEFAULT_LNG, name: 'Residential Building 101' },
+                        { id: 2, number: '102', type: 'store', lat: DEFAULT_LAT + 0.001, lng: DEFAULT_LNG, name: 'Shop Center 102' },
+                        { id: 3, number: '103', type: 'house', lat: DEFAULT_LAT + 0.002, lng: DEFAULT_LNG, name: 'Residential Building 103' }
+                    ];
+
+                    buildings = sampleBuildings;
+                    buildingIdCounter = 4;
+                }
 
                 loadBuildings();
             } catch (err) {
@@ -483,6 +516,9 @@
             }
             buildings = newBuildings;
             
+            // Save to storage
+            saveBuildingsToStorage();
+            
             // Update display
             displayBuildingList();
             
@@ -490,7 +526,7 @@
             const status = document.getElementById('status');
             status.textContent = `✓ Building #${building.number} deleted!`;
             setTimeout(() => {
-                status.textContent = 'Click to locate';
+                status.textContent = 'Click Add Building to get location';
             }, 2000);
         }
 
@@ -991,6 +1027,7 @@
             };
 
             buildings.push(newBuilding);
+            saveBuildingsToStorage();
             createMarker(newBuilding);
             displayBuildingList();
 
