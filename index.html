@@ -1241,57 +1241,71 @@
 
         // Close add building modal
         function closeAddBuildingModal() {
-            if (window.currentAddBuildingModal) {
-                window.currentAddBuildingModal.remove();
-                window.currentAddBuildingModal = null;
+            try {
+                if (window.currentAddBuildingModal) {
+                    window.currentAddBuildingModal.remove();
+                    window.currentAddBuildingModal = null;
+                    console.log('Modal closed');
+                }
+            } catch (e) {
+                console.error('Error closing modal:', e);
             }
         }
 
         // Submit add building form
         function submitAddBuilding() {
-            const buildingNumber = document.getElementById('modalBuildingNumber').value.trim();
-            const buildingType = document.getElementById('modalBuildingType').value;
+            try {
+                const buildingNumber = document.getElementById('modalBuildingNumber').value.trim();
+                const buildingType = document.getElementById('modalBuildingType').value;
 
-            if (!buildingNumber) {
-                alert('Please enter a building number');
-                return;
+                console.log('Submit - Number:', buildingNumber, 'Type:', buildingType);
+
+                if (!buildingNumber) {
+                    alert('⚠️ Please enter a building number!\n\nExamples: 501, 302, Building A');
+                    return;
+                }
+
+                if (!userLocation) {
+                    alert('❌ No location available.\n\nPlease try clicking Add Building again.');
+                    return;
+                }
+
+                // Check if building number already exists
+                if (buildings.some(b => b.number === buildingNumber)) {
+                    alert(`⚠️ Building #${buildingNumber} already exists!`);
+                    return;
+                }
+
+                const newBuilding = {
+                    id: buildingIdCounter++,
+                    number: buildingNumber,
+                    type: buildingType,
+                    lat: userLocation.lat,
+                    lng: userLocation.lng,
+                    name: `${buildingType.charAt(0).toUpperCase() + buildingType.slice(1)} Building ${buildingNumber}`
+                };
+
+                buildings.push(newBuilding);
+                saveBuildingsToStorage();
+                createMarker(newBuilding);
+                displayBuildingList();
+
+                // Close modal
+                closeAddBuildingModal();
+
+                // Show success
+                const status = document.getElementById('status');
+                status.innerHTML = `✓ Building #${buildingNumber} added!<br><small>${buildingType} at your location</small>`;
+                status.classList.remove('loading');
+                setTimeout(() => {
+                    status.innerHTML = 'Click Add Building to get location';
+                }, 3000);
+
+                console.log('Building added successfully');
+            } catch (e) {
+                console.error('Error submitting building:', e);
+                alert('❌ Error: ' + e.message);
             }
-
-            if (!userLocation) {
-                alert('No location available. Please enable geolocation.');
-                return;
-            }
-
-            // Check if building number already exists
-            if (buildings.some(b => b.number === buildingNumber)) {
-                alert(`Building #${buildingNumber} already exists!`);
-                return;
-            }
-
-            const newBuilding = {
-                id: buildingIdCounter++,
-                number: buildingNumber,
-                type: buildingType,
-                lat: userLocation.lat,
-                lng: userLocation.lng,
-                name: `${buildingType.charAt(0).toUpperCase() + buildingType.slice(1)} Building ${buildingNumber}`
-            };
-
-            buildings.push(newBuilding);
-            saveBuildingsToStorage();
-            createMarker(newBuilding);
-            displayBuildingList();
-
-            // Close modal
-            closeAddBuildingModal();
-
-            // Show success
-            const status = document.getElementById('status');
-            status.innerHTML = `✓ Building #${buildingNumber} added!<br><small>${buildingType} at your location</small>`;
-            status.classList.remove('loading');
-            setTimeout(() => {
-                status.innerHTML = 'Click Add Building to get location';
-            }, 3000);
         }
 
         // Add new building from user input
