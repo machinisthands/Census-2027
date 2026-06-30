@@ -1071,313 +1071,172 @@
             }
         }
 
-        // Advanced location detection with accuracy improvement
+        // Simplified Add Building function
         function openAddBuildingForm() {
             const status = document.getElementById('status');
-            status.innerHTML = '🛰️ Acquiring high-precision GPS...';
+            status.innerHTML = '🛰️ Getting location...';
             status.classList.add('loading');
 
-            let bestLocation = null;
-            let attemptCount = 0;
-            const maxAttempts = 5;
-            const targetAccuracy = 10; // meters
-            let watchId = null;
-
-            // Function to process location
-            function processLocation(position) {
-                attemptCount++;
-                const newLocation = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude,
-                    accuracy: position.coords.accuracy,
-                    timestamp: position.timestamp,
-                    altitude: position.coords.altitude,
-                    speed: position.coords.speed
-                };
-
-                // Keep the best (most accurate) location
-                if (!bestLocation || newLocation.accuracy < bestLocation.accuracy) {
-                    bestLocation = newLocation;
-                }
-
-                // Update status with current attempt
-                let accuracyIndicator = '';
-                if (bestLocation.accuracy < 5) {
-                    accuracyIndicator = '🟢🟢🟢 Excellent';
-                } else if (bestLocation.accuracy < 10) {
-                    accuracyIndicator = '🟢🟢 Very Good';
-                } else if (bestLocation.accuracy < 20) {
-                    accuracyIndicator = '🟢 Good';
-                } else if (bestLocation.accuracy < 50) {
-                    accuracyIndicator = '🟡 Fair';
-                } else {
-                    accuracyIndicator = '🔴 Low';
-                }
-
-                status.innerHTML = `🛰️ GPS Lock: ${attemptCount}/${maxAttempts}<br>
-                    <small>Accuracy: ${Math.round(bestLocation.accuracy)}m ${accuracyIndicator}<br>
-                    Lat: ${bestLocation.lat.toFixed(8)}<br>
-                    Lng: ${bestLocation.lng.toFixed(8)}</small>`;
-
-                // Stop if we've reached target accuracy or max attempts
-                if (bestLocation.accuracy <= targetAccuracy || attemptCount >= maxAttempts) {
-                    if (watchId !== null) {
-                        navigator.geolocation.clearWatch(watchId);
-                    }
-                    
-                    userLocation = bestLocation;
-                    
-                    // Remove old user marker
-                    if (userMarker) {
-                        try {
-                            map.removeLayer(userMarker);
-                        } catch (e) {}
-                    }
-
-                    // Create user location marker with accuracy circle
-                    const userIcon = L.divIcon({
-                        html: `
-                            <div style="
-                                width: 20px;
-                                height: 20px;
-                                background: #2196F3;
-                                border: 3px solid white;
-                                border-radius: 50%;
-                                box-shadow: 0 2px 8px rgba(33, 150, 243, 0.6);
-                            "></div>
-                        `,
-                        iconSize: [20, 20],
-                        iconAnchor: [10, 10]
-                    });
-
-                    userMarker = L.marker([bestLocation.lat, bestLocation.lng], { icon: userIcon })
-                        .addTo(map)
-                        .bindPopup(`📍 Your Location<br>Accuracy: ${Math.round(bestLocation.accuracy)}m`);
-
-                    // Draw accuracy circle
-                    if (bestLocation.accuracy < 1000) {
-                        let circleColor = '#4CAF50';
-                        if (bestLocation.accuracy > 50) circleColor = '#FFC107';
-                        if (bestLocation.accuracy > 100) circleColor = '#f44336';
-
-                        L.circle([bestLocation.lat, bestLocation.lng], {
-                            radius: bestLocation.accuracy,
-                            color: circleColor,
-                            weight: 2,
-                            opacity: 0.4,
-                            fillOpacity: 0.1,
-                            dashArray: '5, 5'
-                        }).addTo(map);
-                    }
-
-                    // Center map
-                    map.setView([bestLocation.lat, bestLocation.lng], 17);
-
-                    // Final status
-                    let finalMessage = '';
-                    if (bestLocation.accuracy < 5) {
-                        finalMessage = '✓ High Precision GPS Lock!';
-                    } else if (bestLocation.accuracy < 20) {
-                        finalMessage = '✓ Precise Location Acquired';
-                    } else {
-                        finalMessage = '✓ Location Acquired';
-                    }
-
-                    status.innerHTML = `${finalMessage}<br>
-                        <small>Accuracy: ${Math.round(bestLocation.accuracy)}m<br>
-                        Lat: ${bestLocation.lat.toFixed(8)}<br>
-                        Lng: ${bestLocation.lng.toFixed(8)}</small>`;
-                    status.classList.remove('loading');
-
-                    // Show form
-                    showAddBuildingModal();
-                }
-            }
-
-            // Error handler
-            function handleError(error) {
-                if (watchId !== null) {
-                    navigator.geolocation.clearWatch(watchId);
-                }
-
-                let errorMsg = '';
-                switch(error.code) {
-                    case error.PERMISSION_DENIED:
-                        errorMsg = '❌ Location permission denied';
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        errorMsg = '❌ GPS signal lost. Try outdoor/open area.';
-                        break;
-                    case error.TIMEOUT:
-                        errorMsg = '❌ Location timeout (15s)';
-                        break;
-                    default:
-                        errorMsg = '❌ ' + error.message;
-                }
-                status.textContent = errorMsg;
-                status.classList.remove('loading');
-                showAddBuildingModal();
-            }
-
-            // Start GPS with high accuracy settings
-            if (navigator.geolocation) {
-                watchId = navigator.geolocation.watchPosition(
-                    processLocation,
-                    handleError,
-                    {
-                        enableHighAccuracy: true,    // Use GPS instead of WiFi
-                        timeout: 15000,               // 15 seconds timeout
-                        maximumAge: 0                 // Get fresh location, not cached
-                    }
-                );
-            } else {
+            if (!navigator.geolocation) {
                 status.textContent = '❌ Geolocation not supported';
                 status.classList.remove('loading');
                 showAddBuildingModal();
+                return;
             }
+
+            // Get location with timeout
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    try {
+                        userLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                            accuracy: position.coords.accuracy
+                        };
+
+                        console.log('Location acquired:', userLocation);
+
+                        // Remove old marker
+                        if (userMarker) {
+                            try {
+                                map.removeLayer(userMarker);
+                            } catch (e) {}
+                        }
+
+                        // Create marker
+                        const userIcon = L.divIcon({
+                            html: '<div style="width: 20px; height: 20px; background: #2196F3; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(33, 150, 243, 0.6);"></div>',
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                        });
+
+                        userMarker = L.marker([userLocation.lat, userLocation.lng], { icon: userIcon })
+                            .addTo(map)
+                            .bindPopup('📍 Your Location');
+
+                        // Add accuracy circle
+                        if (userLocation.accuracy < 1000) {
+                            L.circle([userLocation.lat, userLocation.lng], {
+                                radius: userLocation.accuracy,
+                                color: '#2196F3',
+                                weight: 2,
+                                opacity: 0.4,
+                                fillOpacity: 0.1
+                            }).addTo(map);
+                        }
+
+                        // Center map
+                        map.setView([userLocation.lat, userLocation.lng], 17);
+
+                        // Update status
+                        let accuracy = '🟡 Fair';
+                        if (userLocation.accuracy < 10) accuracy = '🟢 Excellent';
+                        else if (userLocation.accuracy < 20) accuracy = '🟢 Good';
+                        else if (userLocation.accuracy < 50) accuracy = '🟡 Fair';
+
+                        status.innerHTML = `✓ Located!<br><small>Accuracy: ${Math.round(userLocation.accuracy)}m ${accuracy}<br>Lat: ${userLocation.lat.toFixed(6)}<br>Lng: ${userLocation.lng.toFixed(6)}</small>`;
+                        status.classList.remove('loading');
+
+                        // Show form
+                        setTimeout(showAddBuildingModal, 500);
+                    } catch (e) {
+                        console.error('Error processing location:', e);
+                        status.textContent = '❌ Error: ' + e.message;
+                        status.classList.remove('loading');
+                        showAddBuildingModal();
+                    }
+                },
+                function(error) {
+                    console.error('Geolocation error:', error);
+                    let errorMsg = 'Location error';
+                    if (error.code === 1) errorMsg = '❌ Permission denied';
+                    else if (error.code === 2) errorMsg = '❌ Position unavailable';
+                    else if (error.code === 3) errorMsg = '❌ Timeout';
+                    
+                    status.textContent = errorMsg;
+                    status.classList.remove('loading');
+                    showAddBuildingModal();
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
         }
 
-        // Show add building modal form
+        // Show add building modal form - Simplified
         function showAddBuildingModal() {
-            const modal = document.createElement('div');
-            modal.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.5);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 10000;
-            `;
-
-            const modalContent = document.createElement('div');
-            modalContent.style.cssText = `
-                background: white;
-                padding: 32px;
-                border-radius: 12px;
-                box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-                max-width: 450px;
-                width: 90%;
-                max-height: 90vh;
-                overflow-y: auto;
-            `;
-
-            let lat = 'Not detected';
-            let lng = 'Not detected';
-            let accuracyHTML = '';
-
-            if (userLocation) {
-                lat = userLocation.lat.toFixed(8);
-                lng = userLocation.lng.toFixed(8);
-                
-                let accuracyColor = '#f44336';
-                let accuracyLevel = 'Low';
-                
-                if (userLocation.accuracy < 5) {
-                    accuracyColor = '#4CAF50';
-                    accuracyLevel = '🟢 Excellent';
-                } else if (userLocation.accuracy < 10) {
-                    accuracyColor = '#4CAF50';
-                    accuracyLevel = '🟢 Very Good';
-                } else if (userLocation.accuracy < 20) {
-                    accuracyColor = '#FFC107';
-                    accuracyLevel = '🟡 Good';
-                } else if (userLocation.accuracy < 50) {
-                    accuracyColor = '#FFC107';
-                    accuracyLevel = '🟡 Fair';
-                } else {
-                    accuracyColor = '#f44336';
-                    accuracyLevel = '🔴 Low';
+            try {
+                // Close any existing modal first
+                if (window.currentAddBuildingModal) {
+                    window.currentAddBuildingModal.remove();
                 }
 
-                accuracyHTML = `
-                    <div style="margin-bottom: 6px; padding: 6px; background: ${accuracyColor}22; border-left: 3px solid ${accuracyColor}; border-radius: 4px;">
-                        <div style="font-size: 0.85em; color: #666;">Accuracy: ${accuracyLevel}</div>
-                        <div style="font-size: 0.85em; color: #333; font-weight: 600;">${Math.round(userLocation.accuracy)}m radius</div>
+                const modal = document.createElement('div');
+                modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;';
+
+                const content = document.createElement('div');
+                content.style.cssText = 'background:white;padding:32px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.3);max-width:450px;width:90%;max-height:90vh;overflow-y:auto;';
+
+                let locHTML = '';
+                if (userLocation) {
+                    let acc = '🟡 Fair';
+                    if (userLocation.accuracy < 10) acc = '🟢 Excellent';
+                    else if (userLocation.accuracy < 20) acc = '🟢 Good';
+                    else if (userLocation.accuracy < 50) acc = '🟡 Fair';
+
+                    locHTML = `
+                        <div style="background:#f0f0f0;padding:12px;border-radius:8px;margin-bottom:20px;">
+                            <div style="font-size:0.9em;color:#666;font-weight:600;margin-bottom:8px;">📍 Location (High Precision):</div>
+                            <div style="font-family:monospace;font-size:0.9em;color:#333;">
+                                <div>Lat: <span style="color:#667eea;font-weight:600;">${userLocation.lat.toFixed(8)}</span></div>
+                                <div>Lng: <span style="color:#667eea;font-weight:600;">${userLocation.lng.toFixed(8)}</span></div>
+                                <div style="margin-top:8px;padding:8px;background:${userLocation.accuracy<20?'#c8e6c9':'#fff9c4'};border-radius:4px;">
+                                    Accuracy: <strong>${Math.round(userLocation.accuracy)}m ${acc}</strong>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                content.innerHTML = `
+                    <h2 style="margin-bottom:24px;color:#333;font-size:1.8em;">➕ Add Building</h2>
+                    ${locHTML}
+                    <div style="margin-bottom:16px;">
+                        <label style="display:block;margin-bottom:8px;font-weight:600;color:#555;">Building Number</label>
+                        <input type="text" id="modalBuildingNumber" placeholder="e.g., 501" maxlength="10" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:6px;font-size:1em;box-sizing:border-box;">
+                    </div>
+                    <div style="margin-bottom:20px;">
+                        <label style="display:block;margin-bottom:8px;font-weight:600;color:#555;">Building Type</label>
+                        <select id="modalBuildingType" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:6px;font-size:1em;box-sizing:border-box;">
+                            <option value="house">🏠 House</option>
+                            <option value="store">🏪 Store</option>
+                        </select>
+                    </div>
+                    <div style="display:flex;gap:12px;">
+                        <button onclick="submitAddBuilding()" style="flex:1;padding:14px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:1em;">✓ Add Building</button>
+                        <button onclick="closeAddBuildingModal()" style="flex:1;padding:14px;background:#e0e0e0;color:#333;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:1em;">Cancel</button>
                     </div>
                 `;
-            }
 
-            modalContent.innerHTML = `
-                <h2 style="margin-bottom: 24px; color: #333; font-size: 1.8em;">➕ Add Building</h2>
+                modal.appendChild(content);
+                document.body.appendChild(modal);
+
+                modal.onclick = (e) => {
+                    if (e.target === modal) closeAddBuildingModal();
+                };
+
+                window.currentAddBuildingModal = modal;
                 
-                <div style="background: #f0f0f0; padding: 12px; border-radius: 8px; margin-bottom: 20px;">
-                    <div style="font-size: 0.9em; color: #666; font-weight: 600; margin-bottom: 8px;">📍 Current Location (High Precision):</div>
-                    <div style="font-family: monospace; font-size: 0.9em; color: #333; margin-bottom: 8px;">
-                        <div>Lat: <span style="color: #667eea; font-weight: 600;">${lat}</span></div>
-                        <div>Lng: <span style="color: #667eea; font-weight: 600;">${lng}</span></div>
-                    </div>
-                    ${accuracyHTML}
-                </div>
-
-                <div style="margin-bottom: 16px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">Building Number</label>
-                    <input type="text" id="modalBuildingNumber" placeholder="e.g., 501" maxlength="10" style="
-                        width: 100%;
-                        padding: 12px;
-                        border: 1px solid #ddd;
-                        border-radius: 6px;
-                        font-size: 1em;
-                        box-sizing: border-box;
-                    ">
-                </div>
-
-                <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">Building Type</label>
-                    <select id="modalBuildingType" style="
-                        width: 100%;
-                        padding: 12px;
-                        border: 1px solid #ddd;
-                        border-radius: 6px;
-                        font-size: 1em;
-                        box-sizing: border-box;
-                    ">
-                        <option value="house">🏠 House</option>
-                        <option value="store">🏪 Store</option>
-                    </select>
-                </div>
-
-                <div style="display: flex; gap: 12px;">
-                    <button onclick="submitAddBuilding()" style="
-                        flex: 1;
-                        padding: 14px;
-                        background: #667eea;
-                        color: white;
-                        border: none;
-                        border-radius: 6px;
-                        cursor: pointer;
-                        font-weight: 600;
-                        font-size: 1em;
-                    ">✓ Add Building</button>
-                    <button onclick="closeAddBuildingModal()" style="
-                        flex: 1;
-                        padding: 14px;
-                        background: #e0e0e0;
-                        color: #333;
-                        border: none;
-                        border-radius: 6px;
-                        cursor: pointer;
-                        font-weight: 600;
-                        font-size: 1em;
-                    ">Cancel</button>
-                </div>
-            `;
-
-            modal.appendChild(modalContent);
-            document.body.appendChild(modal);
-
-            // Close on background click
-            modal.onclick = (e) => {
-                if (e.target === modal) {
-                    closeAddBuildingModal();
-                }
-            };
-
-            window.currentAddBuildingModal = modal;
-            document.getElementById('modalBuildingNumber').focus();
+                const input = document.getElementById('modalBuildingNumber');
+                if (input) input.focus();
+                
+                console.log('Modal opened successfully');
+            } catch (e) {
+                console.error('Error showing modal:', e);
+                alert('Error: ' + e.message);
+            }
         }
 
         // Close add building modal
